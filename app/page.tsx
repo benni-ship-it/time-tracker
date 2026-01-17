@@ -83,14 +83,24 @@ export default function Dashboard() {
     return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
   }, [entries, selectedMonth]);
 
-  // Diese Woche
+  // Diese Woche (Montag bis Sonntag)
   const thisWeekStats = useMemo(() => {
     const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sonntag, 1 = Montag, ...
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sonntag = 6 Tage zurück, sonst dayOfWeek - 1
+
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+    startOfWeek.setDate(now.getDate() - diffToMonday);
     startOfWeek.setHours(0, 0, 0, 0);
 
-    const weekEntries = entries.filter((e) => new Date(e.date) >= startOfWeek);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const weekEntries = entries.filter((e) => {
+      const entryDate = new Date(e.date);
+      return entryDate >= startOfWeek && entryDate <= endOfWeek;
+    });
     const totalHours = weekEntries.reduce((sum, e) => sum + e.hours, 0);
 
     return { totalHours };
