@@ -1,23 +1,23 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Client, Project, TimeEntry } from '@/lib/supabase';
+import { supabase, Client, TimeEntry } from '@/lib/supabase';
 
-type TimeEntryWithProject = TimeEntry & {
-  project: Project & { client: Client };
+type TimeEntryWithClient = TimeEntry & {
+  client: Client;
 };
 
 export default function TimePage() {
-  const [entries, setEntries] = useState<TimeEntryWithProject[]>([]);
-  const [projects, setProjects] = useState<(Project & { client: Client })[]>([]);
+  const [entries, setEntries] = useState<TimeEntryWithClient[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(
-    new Date().toISOString().slice(0, 7) // YYYY-MM
+    new Date().toISOString().slice(0, 7)
   );
   const [formData, setFormData] = useState({
-    project_id: '',
+    client_id: '',
     date: new Date().toISOString().split('T')[0],
     hours: '',
     description: '',
@@ -28,23 +28,22 @@ export default function TimePage() {
   }, []);
 
   const fetchData = async () => {
-    const [entriesRes, projectsRes] = await Promise.all([
+    const [entriesRes, clientsRes] = await Promise.all([
       supabase
         .from('time_entries')
-        .select('*, project:projects(*, client:clients(*))')
-        .order('date', { ascending: false })
-        .limit(100),
-      supabase
-        .from('projects')
         .select('*, client:clients(*)')
+        .order('date', { ascending: false }),
+      supabase
+        .from('clients')
+        .select('*')
         .order('name'),
     ]);
 
     if (entriesRes.error) console.error('Error fetching entries:', entriesRes.error);
-    if (projectsRes.error) console.error('Error fetching projects:', projectsRes.error);
+    if (clientsRes.error) console.error('Error fetching clients:', clientsRes.error);
 
     setEntries(entriesRes.data || []);
-    setProjects(projectsRes.data || []);
+    setClients(clientsRes.data || []);
     setLoading(false);
   };
 
@@ -52,7 +51,7 @@ export default function TimePage() {
     e.preventDefault();
 
     const entryData = {
-      project_id: formData.project_id,
+      client_id: formData.client_id,
       date: formData.date,
       hours: parseFloat(formData.hours),
       description: formData.description || null,
@@ -72,7 +71,7 @@ export default function TimePage() {
     }
 
     setFormData({
-      project_id: formData.project_id,
+      client_id: formData.client_id,
       date: formData.date,
       hours: '',
       description: '',
@@ -82,10 +81,10 @@ export default function TimePage() {
     fetchData();
   };
 
-  const handleEdit = (entry: TimeEntryWithProject) => {
+  const handleEdit = (entry: TimeEntryWithClient) => {
     setEditingEntry(entry);
     setFormData({
-      project_id: entry.project_id,
+      client_id: entry.client_id,
       date: entry.date,
       hours: entry.hours.toString(),
       description: entry.description || '',
@@ -100,11 +99,10 @@ export default function TimePage() {
     else fetchData();
   };
 
-  const getHourlyRate = (entry: TimeEntryWithProject) => {
-    return entry.project?.hourly_rate || entry.project?.client?.hourly_rate || 0;
+  const getHourlyRate = (entry: TimeEntryWithClient) => {
+    return entry.client?.hourly_rate || 0;
   };
 
-  // Gefilterte Einträge nach Monat
   const filteredEntries = useMemo(() => {
     if (!selectedMonth) return entries;
     return entries.filter((entry) => entry.date.startsWith(selectedMonth));
@@ -121,22 +119,22 @@ export default function TimePage() {
             setShowForm(true);
             setEditingEntry(null);
             setFormData({
-              project_id: projects[0]?.id || '',
+              client_id: clients[0]?.id || '',
               date: new Date().toISOString().split('T')[0],
               hours: '',
               description: '',
             });
           }}
-          disabled={projects.length === 0}
+          disabled={clients.length === 0}
           className="bg-[#1e1b4b] text-white px-4 py-2 rounded-lg hover:bg-[#2d2a5e] disabled:bg-gray-400"
         >
           + Zeit erfassen
         </button>
       </div>
 
-      {projects.length === 0 && (
+      {clients.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-yellow-800">
-          Erstelle zuerst Kunden und Projekte, bevor du Zeiten erfassen kannst.
+          Erstelle zuerst einen Kunden, bevor du Zeiten erfassen kannst.
         </div>
       )}
 
@@ -164,17 +162,17 @@ export default function TimePage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Projekt</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kunde</label>
                 <select
-                  value={formData.project_id}
-                  onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                  value={formData.client_id}
+                  onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#1e1b4b]"
                   required
                 >
-                  <option value="">Projekt wählen...</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.client?.name} - {project.name}
+                  <option value="">Kunde wählen...</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name} ({client.hourly_rate}€/h)
                     </option>
                   ))}
                 </select>
@@ -211,6 +209,7 @@ export default function TimePage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#1e1b4b]"
                 rows={2}
                 placeholder="Was hast du gemacht?"
+                required
               />
             </div>
             <div className="flex gap-2">
@@ -239,7 +238,7 @@ export default function TimePage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Datum</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Projekt</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Beschreibung</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Stunden</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Betrag</th>
@@ -255,9 +254,8 @@ export default function TimePage() {
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {new Date(entry.date).toLocaleDateString('de-DE')}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      <div className="font-medium">{entry.project?.name}</div>
-                      <div className="text-gray-500 text-xs">{entry.project?.client?.name}</div>
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                      {entry.client?.name}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                       {entry.description || '-'}

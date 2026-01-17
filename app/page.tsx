@@ -2,19 +2,19 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { supabase, Client, Project, TimeEntry } from '@/lib/supabase';
+import { supabase, Client, TimeEntry } from '@/lib/supabase';
 
-type TimeEntryWithProject = TimeEntry & {
-  project: Project & { client: Client };
+type TimeEntryWithClient = TimeEntry & {
+  client: Client;
 };
 
 export default function Dashboard() {
-  const [entries, setEntries] = useState<TimeEntryWithProject[]>([]);
+  const [entries, setEntries] = useState<TimeEntryWithClient[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>(
-    new Date().toISOString().slice(0, 7) // YYYY-MM
+    new Date().toISOString().slice(0, 7)
   );
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function Dashboard() {
     const [entriesRes, clientsRes] = await Promise.all([
       supabase
         .from('time_entries')
-        .select('*, project:projects(*, client:clients(*))')
+        .select('*, client:clients(*)')
         .order('date', { ascending: false }),
       supabase.from('clients').select('*').order('name'),
     ]);
@@ -38,14 +38,14 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const getHourlyRate = (entry: TimeEntryWithProject) => {
-    return entry.project?.hourly_rate || entry.project?.client?.hourly_rate || 0;
+  const getHourlyRate = (entry: TimeEntryWithClient) => {
+    return entry.client?.hourly_rate || 0;
   };
 
   // Gefilterte Einträge
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
-      const matchesClient = selectedClient === 'all' || entry.project?.client?.id === selectedClient;
+      const matchesClient = selectedClient === 'all' || entry.client?.id === selectedClient;
       const matchesMonth = entry.date.startsWith(selectedMonth);
       return matchesClient && matchesMonth;
     });
@@ -69,8 +69,8 @@ export default function Dashboard() {
     const stats: Record<string, { name: string; hours: number; revenue: number }> = {};
 
     monthEntries.forEach((entry) => {
-      const clientId = entry.project?.client?.id;
-      const clientName = entry.project?.client?.name || 'Unbekannt';
+      const clientId = entry.client?.id;
+      const clientName = entry.client?.name || 'Unbekannt';
 
       if (!stats[clientId]) {
         stats[clientId] = { name: clientName, hours: 0, revenue: 0 };
@@ -87,7 +87,7 @@ export default function Dashboard() {
   const thisWeekStats = useMemo(() => {
     const now = new Date();
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Montag
+    startOfWeek.setDate(now.getDate() - now.getDay() + 1);
     startOfWeek.setHours(0, 0, 0, 0);
 
     const weekEntries = entries.filter((e) => new Date(e.date) >= startOfWeek);
@@ -100,10 +100,10 @@ export default function Dashboard() {
   const handleCopyForExport = () => {
     const lines = filteredEntries.map((entry) => {
       const rate = getHourlyRate(entry);
-      return `${new Date(entry.date).toLocaleDateString('de-DE')}\t${entry.project?.client?.name}\t${entry.project?.name}\t${entry.hours}h\t${(entry.hours * rate).toFixed(2)}€\t${entry.description || ''}`;
+      return `${new Date(entry.date).toLocaleDateString('de-DE')}\t${entry.client?.name}\t${entry.description || ''}\t${entry.hours}h\t${(entry.hours * rate).toFixed(2)}€`;
     });
 
-    const header = 'Datum\tKunde\tProjekt\tStunden\tBetrag\tBeschreibung';
+    const header = 'Datum\tKunde\tBeschreibung\tStunden\tBetrag';
     const text = [header, ...lines].join('\n');
 
     navigator.clipboard.writeText(text);
@@ -222,7 +222,6 @@ export default function Dashboard() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Datum</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Projekt</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Beschreibung</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Stunden</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Betrag</th>
@@ -236,8 +235,7 @@ export default function Dashboard() {
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {new Date(entry.date).toLocaleDateString('de-DE')}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{entry.project?.client?.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{entry.project?.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">{entry.client?.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{entry.description || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 text-right">{entry.hours.toFixed(2)}h</td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 text-right">

@@ -25,11 +25,11 @@ export interface Project {
 
 export interface TimeEntry {
   id: string;
-  project_id: string;
+  client_id: string;
   date: string;
   hours: number;
   description: string | null;
   created_at: string;
   // Joined data
-  project?: Project & { client: Client };
+  client?: Client;
 }
