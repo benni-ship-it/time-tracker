@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase, Client, Project, TimeEntry } from '@/lib/supabase';
 
 type TimeEntryWithProject = TimeEntry & {
@@ -13,6 +13,9 @@ export default function TimePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    new Date().toISOString().slice(0, 7) // YYYY-MM
+  );
   const [formData, setFormData] = useState({
     project_id: '',
     date: new Date().toISOString().split('T')[0],
@@ -101,6 +104,12 @@ export default function TimePage() {
     return entry.project?.hourly_rate || entry.project?.client?.hourly_rate || 0;
   };
 
+  // Gefilterte Einträge nach Monat
+  const filteredEntries = useMemo(() => {
+    if (!selectedMonth) return entries;
+    return entries.filter((entry) => entry.date.startsWith(selectedMonth));
+  }, [entries, selectedMonth]);
+
   if (loading) return <div className="text-center py-8">Laden...</div>;
 
   return (
@@ -130,6 +139,22 @@ export default function TimePage() {
           Erstelle zuerst Kunden und Projekte, bevor du Zeiten erfassen kannst.
         </div>
       )}
+
+      {/* Monatsfilter */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="flex items-center gap-4">
+          <label className="text-sm font-medium text-gray-700">Monat:</label>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2"
+          />
+          <span className="text-sm text-gray-500">
+            {filteredEntries.length} Einträge
+          </span>
+        </div>
+      </div>
 
       {showForm && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -204,9 +229,9 @@ export default function TimePage() {
         </div>
       )}
 
-      {entries.length === 0 ? (
+      {filteredEntries.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-          Noch keine Zeiteinträge vorhanden.
+          Keine Zeiteinträge für diesen Monat.
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -222,7 +247,7 @@ export default function TimePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {entries.map((entry) => {
+              {filteredEntries.map((entry) => {
                 const rate = getHourlyRate(entry);
                 const amount = entry.hours * rate;
                 return (

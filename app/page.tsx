@@ -62,24 +62,9 @@ export default function Dashboard() {
     return { totalHours, totalRevenue };
   }, [entries]);
 
-  // Berechnungen für Vormonat (Vergleich)
-  const lastMonthStats = useMemo(() => {
-    const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      .toISOString()
-      .slice(0, 7);
-    const monthEntries = entries.filter((e) => e.date.startsWith(lastMonth));
-
-    const totalHours = monthEntries.reduce((sum, e) => sum + e.hours, 0);
-    const totalRevenue = monthEntries.reduce((sum, e) => sum + e.hours * getHourlyRate(e), 0);
-
-    return { totalHours, totalRevenue };
-  }, [entries]);
-
-  // Stats pro Kunde für aktuellen Monat
+  // Stats pro Kunde für ausgewählten Monat
   const clientStats = useMemo(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const monthEntries = entries.filter((e) => e.date.startsWith(currentMonth));
+    const monthEntries = entries.filter((e) => e.date.startsWith(selectedMonth));
 
     const stats: Record<string, { name: string; hours: number; revenue: number }> = {};
 
@@ -96,7 +81,7 @@ export default function Dashboard() {
     });
 
     return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
-  }, [entries]);
+  }, [entries, selectedMonth]);
 
   // Diese Woche
   const thisWeekStats = useMemo(() => {
@@ -137,6 +122,8 @@ export default function Dashboard() {
   const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
                       'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const currentMonthName = monthNames[new Date().getMonth()];
+  const selectedMonthIndex = parseInt(selectedMonth.split('-')[1]) - 1;
+  const selectedMonthName = monthNames[selectedMonthIndex] || '';
 
   return (
     <div>
@@ -151,20 +138,10 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <p className="text-sm text-gray-500 mb-1">Stunden {currentMonthName}</p>
           <p className="text-3xl font-bold text-gray-900">{currentMonthStats.totalHours.toFixed(1)}h</p>
-          {lastMonthStats.totalHours > 0 && (
-            <p className={`text-sm ${currentMonthStats.totalHours >= lastMonthStats.totalHours ? 'text-green-600' : 'text-red-600'}`}>
-              {currentMonthStats.totalHours >= lastMonthStats.totalHours ? '↑' : '↓'} vs. Vormonat ({lastMonthStats.totalHours.toFixed(1)}h)
-            </p>
-          )}
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <p className="text-sm text-gray-500 mb-1">Netto {currentMonthName}</p>
           <p className="text-3xl font-bold text-[#1e1b4b]">{currentMonthStats.totalRevenue.toFixed(0)} €</p>
-          {lastMonthStats.totalRevenue > 0 && (
-            <p className={`text-sm ${currentMonthStats.totalRevenue >= lastMonthStats.totalRevenue ? 'text-green-600' : 'text-red-600'}`}>
-              {currentMonthStats.totalRevenue >= lastMonthStats.totalRevenue ? '↑' : '↓'} vs. Vormonat ({lastMonthStats.totalRevenue.toFixed(0)} €)
-            </p>
-          )}
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <p className="text-sm text-gray-500 mb-1">Brutto {currentMonthName}</p>
@@ -176,7 +153,7 @@ export default function Dashboard() {
       {/* Aufschlüsselung pro Kunde */}
       {clientStats.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Aufschlüsselung {currentMonthName}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Aufschlüsselung {selectedMonthName}</h2>
           <div className="space-y-3">
             {clientStats.map((stat) => (
               <div key={stat.name} className="flex items-center justify-between">
